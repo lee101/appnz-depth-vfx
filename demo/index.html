@@ -131,6 +131,10 @@
         cursor: pointer;
         margin-top: 20px;
       }
+      button:disabled {
+        cursor: wait;
+        opacity: 0.58;
+      }
       .grid {
         display: grid;
         grid-template-columns: 1fr 1fr;
@@ -221,7 +225,9 @@
         <div class="orb"></div>
       </section>
     </main>
-    <script>
+    <script type="module">
+      import { outputHref, runPrediction } from "./appnz-client.mjs";
+
       const $ = (id) => document.getElementById(id);
       const dataURL = (f) =>
         new Promise((ok) => {
@@ -236,38 +242,41 @@
           $("status").textContent = "Choose an image and add a model id.";
           return;
         }
+        const button = $("run");
+        button.disabled = true;
         try {
           $("status").textContent = "Estimating depth and rendering…";
-          const response = await fetch(
-            `https://app.nz/api/cogs/${encodeURIComponent(id)}/predict`,
-            {
-              method: "POST",
-              credentials: "include",
-              headers: { "content-type": "application/json" },
-              body: JSON.stringify({
-                input: {
-                  image: await dataURL(f),
-                  effect: $("effect").value,
-                  strength: Number($("strength").value),
-                  seconds: 3,
-                },
-              }),
+          const prediction = await runPrediction({
+            modelId: id,
+            input: {
+              image: await dataURL(f),
+              effect: $("effect").value,
+              strength: Number($("strength").value),
+              seconds: 3,
             },
-          );
-          const body = await response.json();
-          if (!response.ok) throw new Error(body.error || "Prediction failed");
-          const out = body.output || body.prediction?.output;
+            onStatus: ({ status }) => {
+              $("status").textContent =
+                status === "starting"
+                  ? "Allocating a worker…"
+                  : status === "processing"
+                    ? "Estimating depth and rendering…"
+                    : `Prediction ${status}…`;
+            },
+          });
+          const out = outputHref(prediction.output);
+          if (!out) throw new Error("The Cog returned an unsupported output.");
           if (out) {
             const video = $("effect").value === "parallax";
             $("result").style.display = video ? "block" : "none";
             $("imageResult").style.display = video ? "none" : "block";
             (video ? $("result") : $("imageResult")).src = out;
           }
-          $("status").textContent = out
-            ? "Done — rendered by your Cog."
-            : "Queued — follow the run in Cog Studio.";
+          $("status").textContent =
+            `Done in ${((prediction.predictMs || 0) / 1000).toFixed(2)}s — rendered by your Cog.`;
         } catch (error) {
           $("status").textContent = error.message;
+        } finally {
+          button.disabled = false;
         }
       };
     </script>

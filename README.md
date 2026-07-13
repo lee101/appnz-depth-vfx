@@ -17,9 +17,14 @@ weights during scale-up.
 ```bash
 cog predict -i image=@photo.jpg -i effect=parallax -i strength=0.55
 docker run --rm --gpus all -p 5000:5000 ghcr.io/lee101/appnz-depth-vfx:latest
-app cogs create --name depth-vfx --image ghcr.io/lee101/appnz-depth-vfx:latest --hardware gpu-rtx3090
+app cogs deploy depth-vfx --name my-depth-vfx
 app apps deploy demo --app depth-vfx-demo
+node --test tests/appnz_client.test.mjs
 ```
+
+The hosted demo waits through app.nz's queued prediction lifecycle, reports
+worker progress, and renders the returned artifact automatically. Its queue
+client tests success, API errors, worker failures, timeouts, and output shapes.
 
 Effects: `parallax` (MP4), `depth`, `heatmap`, and `normals` (PNG). Inputs are
 bounded to 20 MP and parallax clips to six seconds.
